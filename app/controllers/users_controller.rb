@@ -32,7 +32,7 @@ class UsersController < ApplicationController
     @topics = @topics.to_a.sort do |a, b|
       @topic_ids.index(a.id) <=> @topic_ids.index(b.id)
     end
-    set_seo_meta("#{@user.login} 的收藏")
+    set_seo_meta("#{@user.login} 的收藏  ")
   end
 
   def notes
