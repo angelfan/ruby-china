@@ -11,6 +11,7 @@ gem 'coffee-rails'
 gem 'uglifier'
 gem 'jquery-rails'
 gem 'jbuilder'
+gem 'multi_fetch_fragments'
 
 gem 'actionpack-action_caching', '1.1.1'
 gem 'rails-i18n'
@@ -94,6 +95,8 @@ gem 'kgio'
 gem 'dalli', '2.7.1'
 
 gem 'puma'
+
+gem 'parallel'
 
 # for api 跨域
 gem 'rack-cors', require: 'rack/cors'
