@@ -1,7 +1,4 @@
 if Rails.env.development?
-  CACHE_PREFIX = "  CACHE:".colorize(:yellow)
-  MOPED_PREFIX = "  MONGO:".colorize(:magenta)
-  
   module ActionView
     class LogSubscriber < ActiveSupport::LogSubscriber
       def render_template(event)
@@ -41,25 +38,11 @@ if Rails.env.development?
         def log(operation, key, options=nil)
           return unless logger && logger.debug? && !silence?
           return if operation.to_s == "fetch_hit"
-          logger.debug("#{CACHE_PREFIX} #{operation} #{key}#{options.blank? ? "" : " (#{options.inspect})"}")
+          optname = "CACHE:".colorize(:magenta)
+          logger.debug("  #{optname} #{operation.to_s.colorize(:yellow)} #{key}#{options.blank? ? "" : " (#{options.inspect})"}")
         end
       end
     end
   end
 
-  module Moped
-    module Loggable
-      def self.log_operations(prefix, ops, runtime)
-        indent  = " "
-        if ops.length == 1
-          Moped.logger.debug([MOPED_PREFIX, ops.first.log_inspect, runtime].join(' '))
-        else
-          first, *middle, last = ops
-          Moped.logger.debug([ MOPED_PREFIX, first.log_inspect ].join(' '))
-          middle.each { |m| Moped.logger.debug([ indent, m.log_inspect ].join(' ')) }
-          Moped.logger.debug([indent, last.log_inspect, runtime].join(' '))
-        end
-      end
-    end
-  end
 end

@@ -6,8 +6,8 @@ class TopicsController < ApplicationController
 
   def index
     Rack::MiniProfiler.step("@suggest_topics") do
-      @suggest_topics = Topic.without_hide_nodes.suggest.fields_for_list.limit(3).to_a
-      @suggest_topic_ids = @suggest_topics.collect(&:id)
+      @suggest_topics = Topic.without_hide_nodes.suggest.fields_for_list.includes(:user).limit(3)
+      @suggest_topic_ids = @suggest_topics.pluck(:id)
     end
 
     Rack::MiniProfiler.step("find_topics") do
@@ -18,7 +18,7 @@ class TopicsController < ApplicationController
       else
         @topics = @topics.without_hide_nodes
       end
-      @topics = @topics.fields_for_list
+      @topics = @topics.fields_for_list.includes(:user)
       @topics = @topics.paginate(page: params[:page], per_page: 15, total_entries: 1500)
     end
 
@@ -71,16 +71,9 @@ class TopicsController < ApplicationController
   end
 
   def show
-    @threads = []
     @topic = Topic.without_body.includes(:user).find(params[:id])
-
-    @threads << Thread.new do
-      @topic.hits.incr(1)
-    end
-    @threads << Thread.new do
-      @node = @topic.node
-    end
-
+    @topic.hits.incr(1)
+    @node = @topic.node
     @show_raw = params[:raw] == '1'
 
     @per_page = Reply.per_page
@@ -88,13 +81,8 @@ class TopicsController < ApplicationController
     params[:page] = @topic.last_page_with_per_page(@per_page) if params[:page].blank?
     @page = params[:page].to_i > 0 ? params[:page].to_i : 1
 
-    @threads << Thread.new do
-      @replies = @topic.replies.unscoped.without_body.asc(:_id)
-      @replies = @replies.paginate(page: @page, per_page: @per_page)
-      
-      check_current_user_liked_replies
-    end
-    @threads.each(&:join)
+    @replies = @topic.replies.unscoped.without_body.asc(:_id)
+    @replies = @replies.paginate(page: @page, per_page: @per_page)
 
     check_current_user_status_for_topic
     set_special_node_active_menu
@@ -103,27 +91,15 @@ class TopicsController < ApplicationController
 
     fresh_when(etag: [@topic, @has_followed, @has_favorited, @replies, @node, @show_raw])
   end
-  
-  def check_current_user_liked_replies
-    return false if not current_user
-    
-    # 找出用户 like 过的 Reply，给 JS 处理 like 功能的状态
-    @user_liked_reply_ids = []
-    @replies.each do |r| 
-      if r.liked_user_ids.index(current_user.id) != nil
-        @user_liked_reply_ids << r.id 
-      end
-    end
-  end
 
   def check_current_user_status_for_topic
     return false if not current_user
-    
-    @threads << Thread.new do
-      # 通知处理
-      current_user.read_topic(@topic)
-    end
-    
+
+    # 找出用户 like 过的 Reply，给 JS 处理 like 功能的状态
+    @user_liked_reply_ids = []
+    @replies.each { |r| @user_liked_reply_ids << r.id if r.liked_user_ids.index(current_user.id) != nil }
+    # 通知处理
+    current_user.read_topic(@topic)
     # 是否关注过
     @has_followed = @topic.follower_ids.index(current_user.id) == nil
     # 是否收藏
@@ -180,7 +156,7 @@ class TopicsController < ApplicationController
     if current_user.admin?
       @topic.admin_editing = true
     end
-
+    
     if @topic.lock_node == false || current_user.admin?
       # 锁定接点的时候，只有管理员可以修改节点
       @topic.node_id = topic_params[:node_id]
